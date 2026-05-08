@@ -32,8 +32,9 @@ export function AuthProvider({ children }) {
         createdAt: new Date(),
         photoURL: null,
       };
-      // Write to Firestore in background — don't block registration
-      setDoc(doc(db, 'users', result.user.uid), profile).catch(() => {});
+      // Wait for token to be ready then write profile
+      await result.user.getIdToken(true);
+      await setDoc(doc(db, 'users', result.user.uid), profile);
       setCurrentUser({ ...result.user, ...profile });
       return result;
     } finally {
