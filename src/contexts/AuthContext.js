@@ -42,7 +42,6 @@ export function AuthProvider({ children }) {
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName });
-      await result.user.getIdToken(true);
       const profile = {
         uid: result.user.uid,
         email: email.toLowerCase(),
