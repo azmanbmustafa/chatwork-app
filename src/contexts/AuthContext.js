@@ -1,0 +1,63 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
+
+const AuthContext = createContext();
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
+export function AuthProvider({ children }) {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  async function register(email, password, displayName) {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(result.user, { displayName });
+    await setDoc(doc(db, 'users', result.user.uid), {
+      uid: result.user.uid,
+      email,
+      displayName,
+      createdAt: new Date(),
+      photoURL: null,
+    });
+    return result;
+  }
+
+  function login(email, password) {
+    return signInWithEmailAndPassword(auth, email, password);
+  }
+
+  function logout() {
+    return signOut(auth);
+  }
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        setCurrentUser({ ...user, ...userDoc.data() });
+      } else {
+        setCurrentUser(null);
+      }
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  const value = { currentUser, register, login, logout };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
+}
