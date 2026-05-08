@@ -47,11 +47,22 @@ export function AuthProvider({ children }) {
       setLoading(false);
 
       // Load extra Firestore profile data in background
+      // Auto-create profile if it doesn't exist (fixes missing docs)
       if (user) {
         getDoc(doc(db, 'users', user.uid))
           .then((userDoc) => {
             if (userDoc.exists()) {
               setCurrentUser((prev) => ({ ...prev, ...userDoc.data() }));
+            } else {
+              const profile = {
+                uid: user.uid,
+                email: user.email.toLowerCase(),
+                displayName: user.displayName || user.email.split('@')[0],
+                createdAt: new Date(),
+                photoURL: null,
+              };
+              setDoc(doc(db, 'users', user.uid), profile).catch(() => {});
+              setCurrentUser((prev) => ({ ...prev, ...profile }));
             }
           })
           .catch(() => {});
