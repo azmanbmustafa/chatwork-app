@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
     await updateProfile(result.user, { displayName });
     await setDoc(doc(db, 'users', result.user.uid), {
       uid: result.user.uid,
-      email,
+      email: email.toLowerCase(),
       displayName,
       createdAt: new Date(),
       photoURL: null,
@@ -41,19 +41,20 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      try {
-        if (user) {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          setCurrentUser({ ...user, ...(userDoc.exists() ? userDoc.data() : {}) });
-        } else {
-          setCurrentUser(null);
-        }
-      } catch (err) {
-        console.error('Auth state error:', err);
-        setCurrentUser(user || null);
-      } finally {
-        setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // Set user immediately from Auth — no waiting for Firestore
+      setCurrentUser(user || null);
+      setLoading(false);
+
+      // Load extra Firestore profile data in background
+      if (user) {
+        getDoc(doc(db, 'users', user.uid))
+          .then((userDoc) => {
+            if (userDoc.exists()) {
+              setCurrentUser((prev) => ({ ...prev, ...userDoc.data() }));
+            }
+          })
+          .catch(() => {});
       }
     });
     return unsubscribe;
