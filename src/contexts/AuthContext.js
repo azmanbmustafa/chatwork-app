@@ -42,13 +42,19 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        setCurrentUser({ ...user, ...userDoc.data() });
-      } else {
-        setCurrentUser(null);
+      try {
+        if (user) {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          setCurrentUser({ ...user, ...(userDoc.exists() ? userDoc.data() : {}) });
+        } else {
+          setCurrentUser(null);
+        }
+      } catch (err) {
+        console.error('Auth state error:', err);
+        setCurrentUser(user || null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsubscribe;
   }, []);
