@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -18,18 +18,26 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const isRegistering = useRef(false);
 
   async function register(email, password, displayName) {
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(result.user, { displayName });
-    await setDoc(doc(db, 'users', result.user.uid), {
-      uid: result.user.uid,
-      email: email.toLowerCase(),
-      displayName,
-      createdAt: new Date(),
-      photoURL: null,
-    });
-    return result;
+    isRegistering.current = true;
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(result.user, { displayName });
+      const profile = {
+        uid: result.user.uid,
+        email: email.toLowerCase(),
+        displayName,
+        createdAt: new Date(),
+        photoURL: null,
+      };
+      await setDoc(doc(db, 'users', result.user.uid), profile);
+      setCurrentUser({ ...result.user, ...profile });
+      return result;
+    } finally {
+      isRegistering.current = false;
+    }
   }
 
   function login(email, password) {
@@ -42,12 +50,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Set user immediately from Auth — no waiting for Firestore
+      if (isRegistering.current) return;
+
       setCurrentUser(user || null);
       setLoading(false);
 
-      // Load extra Firestore profile data in background
-      // Auto-create profile if it doesn't exist (fixes missing docs)
       if (user) {
         getDoc(doc(db, 'users', user.uid))
           .then((userDoc) => {
