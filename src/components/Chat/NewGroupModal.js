@@ -15,26 +15,32 @@ export default function NewGroupModal({ onClose }) {
   const [members, setMembers] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   async function addMember(e) {
     e.preventDefault();
     setError('');
-    if (email === currentUser.email) {
+    const trimmed = email.trim().toLowerCase();
+    if (trimmed === currentUser.email.toLowerCase()) {
       setError("You're already in the group.");
       return;
     }
-    if (members.find((m) => m.email === email)) {
-      setError('Already added.');
+    if (members.find((m) => m.email?.toLowerCase() === trimmed)) {
+      setError('This person is already added.');
       return;
     }
     setLoading(true);
-    const q = query(collection(db, 'users'), where('email', '==', email.trim()));
-    const snap = await getDocs(q);
-    if (snap.empty) {
-      setError('No user found with that email.');
-    } else {
-      setMembers([...members, { id: snap.docs[0].id, ...snap.docs[0].data() }]);
-      setEmail('');
+    try {
+      const q = query(collection(db, 'users'), where('email', '==', trimmed));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        setError('No user found. Make sure they have registered first.');
+      } else {
+        setMembers([...members, { id: snap.docs[0].id, ...snap.docs[0].data() }]);
+        setEmail('');
+      }
+    } catch (err) {
+      setError('Search failed. Please try again.');
     }
     setLoading(false);
   }
@@ -42,22 +48,28 @@ export default function NewGroupModal({ onClose }) {
   async function createGroup() {
     if (!groupName.trim()) return setError('Group name is required.');
     if (members.length < 1) return setError('Add at least one member.');
+    setCreating(true);
+    setError('');
+    try {
+      const allMemberIds = [currentUser.uid, ...members.map((m) => m.uid)];
+      const memberNames = { [currentUser.uid]: currentUser.displayName };
+      members.forEach((m) => { memberNames[m.uid] = m.displayName; });
 
-    const allMemberIds = [currentUser.uid, ...members.map((m) => m.uid)];
-    const memberNames = { [currentUser.uid]: currentUser.displayName };
-    members.forEach((m) => { memberNames[m.uid] = m.displayName; });
-
-    await addDoc(collection(db, 'chats'), {
-      name: groupName.trim(),
-      members: allMemberIds,
-      memberNames,
-      isGroup: true,
-      createdBy: currentUser.uid,
-      createdAt: serverTimestamp(),
-      lastMessageAt: serverTimestamp(),
-      lastMessage: '',
-    });
-    onClose();
+      await addDoc(collection(db, 'chats'), {
+        name: groupName.trim(),
+        members: allMemberIds,
+        memberNames,
+        isGroup: true,
+        createdBy: currentUser.uid,
+        createdAt: serverTimestamp(),
+        lastMessageAt: serverTimestamp(),
+        lastMessage: '',
+      });
+      onClose();
+    } catch (err) {
+      setError('Failed to create group. Please try again.');
+    }
+    setCreating(false);
   }
 
   return (
@@ -78,7 +90,7 @@ export default function NewGroupModal({ onClose }) {
           />
         </div>
 
-        <p className="modal-subtitle">Add members by email</p>
+        <p className="modal-subtitle">Add members by email (must be registered)</p>
         <form onSubmit={addMember} className="modal-search">
           <input
             type="email"
@@ -86,7 +98,9 @@ export default function NewGroupModal({ onClose }) {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="member@email.com"
           />
-          <button type="submit" disabled={loading}><FiUserPlus /></button>
+          <button type="submit" disabled={loading}>
+            {loading ? '...' : <FiUserPlus />}
+          </button>
         </form>
 
         {error && <div className="modal-error">{error}</div>}
@@ -104,8 +118,8 @@ export default function NewGroupModal({ onClose }) {
           </div>
         )}
 
-        <button className="btn-primary" style={{ marginTop: 16 }} onClick={createGroup}>
-          Create Group ({members.length + 1} members)
+        <button className="btn-primary" style={{ marginTop: 16 }} onClick={createGroup} disabled={creating}>
+          {creating ? 'Creating...' : `Create Group (${members.length + 1} members)`}
         </button>
       </div>
     </div>

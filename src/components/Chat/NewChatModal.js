@@ -14,52 +14,64 @@ export default function NewChatModal({ onClose }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   async function searchUser(e) {
     e.preventDefault();
     setError('');
     setResult(null);
-    if (email === currentUser.email) {
+    if (email.trim().toLowerCase() === currentUser.email.toLowerCase()) {
       setError("You can't chat with yourself.");
       return;
     }
     setLoading(true);
-    const q = query(collection(db, 'users'), where('email', '==', email.trim()));
-    const snap = await getDocs(q);
-    if (snap.empty) {
-      setError('No user found with that email.');
-    } else {
-      setResult({ id: snap.docs[0].id, ...snap.docs[0].data() });
+    try {
+      const q = query(collection(db, 'users'), where('email', '==', email.trim().toLowerCase()));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        setError('No user found. Make sure they have registered first.');
+      } else {
+        setResult({ id: snap.docs[0].id, ...snap.docs[0].data() });
+      }
+    } catch (err) {
+      setError('Search failed. Please try again.');
     }
     setLoading(false);
   }
 
   async function startChat() {
-    const existingQ = query(
-      collection(db, 'chats'),
-      where('members', 'array-contains', currentUser.uid),
-      where('isGroup', '==', false)
-    );
-    const snap = await getDocs(existingQ);
-    const existing = snap.docs.find((d) =>
-      d.data().members.includes(result.uid)
-    );
-    if (existing) {
+    setCreating(true);
+    setError('');
+    try {
+      const q = query(
+        collection(db, 'chats'),
+        where('members', 'array-contains', currentUser.uid)
+      );
+      const snap = await getDocs(q);
+      const existing = snap.docs.find((d) => {
+        const data = d.data();
+        return !data.isGroup && data.members.includes(result.uid);
+      });
+      if (existing) {
+        onClose();
+        return;
+      }
+      await addDoc(collection(db, 'chats'), {
+        members: [currentUser.uid, result.uid],
+        memberNames: {
+          [currentUser.uid]: currentUser.displayName,
+          [result.uid]: result.displayName,
+        },
+        isGroup: false,
+        createdAt: serverTimestamp(),
+        lastMessageAt: serverTimestamp(),
+        lastMessage: '',
+      });
       onClose();
-      return;
+    } catch (err) {
+      setError('Failed to create chat. Please try again.');
     }
-    await addDoc(collection(db, 'chats'), {
-      members: [currentUser.uid, result.uid],
-      memberNames: {
-        [currentUser.uid]: currentUser.displayName,
-        [result.uid]: result.displayName,
-      },
-      isGroup: false,
-      createdAt: serverTimestamp(),
-      lastMessageAt: serverTimestamp(),
-      lastMessage: '',
-    });
-    onClose();
+    setCreating(false);
   }
 
   return (
@@ -90,7 +102,9 @@ export default function NewChatModal({ onClose }) {
               <div className="user-result-name">{result.displayName}</div>
               <div className="user-result-email">{result.email}</div>
             </div>
-            <button className="btn-start-chat" onClick={startChat}>Chat</button>
+            <button className="btn-start-chat" onClick={startChat} disabled={creating}>
+              {creating ? '...' : 'Chat'}
+            </button>
           </div>
         )}
       </div>
