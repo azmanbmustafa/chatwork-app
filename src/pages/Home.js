@@ -7,7 +7,7 @@ import '../components/Chat/Chat.css';
 
 export default function Home() {
   const [selectedChat, setSelectedChat] = useState(null);
-  const { currentUser } = useAuth();
+  const { currentUser, dbError } = useAuth();
 
   useEffect(() => {
     if (!currentUser) return;
@@ -27,6 +27,11 @@ export default function Home() {
 
   return (
     <div className="chat-layout">
+      {dbError && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: 'red', color: 'white', padding: '8px 16px', zIndex: 9999, fontSize: 13 }}>
+          Firestore error: {dbError}
+        </div>
+      )}
       <ChatList onSelectChat={setSelectedChat} selectedChatId={selectedChat?.id} />
       <ChatWindow chat={selectedChat} />
     </div>

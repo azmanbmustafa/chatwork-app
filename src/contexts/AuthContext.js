@@ -18,6 +18,7 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [dbError, setDbError] = useState(null);
 
   async function register(email, password, displayName) {
     const result = await createUserWithEmailAndPassword(auth, email, password);
@@ -62,12 +63,13 @@ export function AuthProvider({ children }) {
         }
       } catch (err) {
         console.error('Firestore profile error:', err);
+        setDbError(err.message || err.code || 'Firestore write failed');
       }
     });
     return unsubscribe;
   }, []);
 
-  const value = { currentUser, register, login, logout };
+  const value = { currentUser, register, login, logout, dbError };
 
   return (
     <AuthContext.Provider value={value}>
