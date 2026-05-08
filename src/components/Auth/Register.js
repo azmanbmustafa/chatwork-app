@@ -26,7 +26,7 @@ export default function Register() {
       if (err.code === 'auth/email-already-in-use') {
         setError('This email is already registered.');
       } else {
-        setError('Failed to create account. Please try again.');
+        setError(err.message || 'Failed to create account. Please try again.');
       }
     }
     setLoading(false);

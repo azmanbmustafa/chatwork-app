@@ -15,6 +15,23 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+async function ensureUserDoc(user) {
+  const ref = doc(db, 'users', user.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    const profile = {
+      uid: user.uid,
+      email: user.email.toLowerCase(),
+      displayName: user.displayName || user.email.split('@')[0],
+      createdAt: new Date(),
+      photoURL: null,
+    };
+    await setDoc(ref, profile);
+    return profile;
+  }
+  return snap.data();
+}
+
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +42,7 @@ export function AuthProvider({ children }) {
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName });
+      await result.user.getIdToken(true);
       const profile = {
         uid: result.user.uid,
         email: email.toLowerCase(),
@@ -32,8 +50,6 @@ export function AuthProvider({ children }) {
         createdAt: new Date(),
         photoURL: null,
       };
-      // Wait for token to be ready then write profile
-      await result.user.getIdToken(true);
       await setDoc(doc(db, 'users', result.user.uid), profile);
       setCurrentUser({ ...result.user, ...profile });
       return result;
@@ -51,30 +67,26 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (isRegistering.current) return;
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (isRegistering.current) {
+        setLoading(false);
+        return;
+      }
 
-      setCurrentUser(user || null);
+      if (!user) {
+        setCurrentUser(null);
+        setLoading(false);
+        return;
+      }
+
+      setCurrentUser(user);
       setLoading(false);
 
-      if (user) {
-        getDoc(doc(db, 'users', user.uid))
-          .then((userDoc) => {
-            if (userDoc.exists()) {
-              setCurrentUser((prev) => ({ ...prev, ...userDoc.data() }));
-            } else {
-              const profile = {
-                uid: user.uid,
-                email: user.email.toLowerCase(),
-                displayName: user.displayName || user.email.split('@')[0],
-                createdAt: new Date(),
-                photoURL: null,
-              };
-              setDoc(doc(db, 'users', user.uid), profile).catch(() => {});
-              setCurrentUser((prev) => ({ ...prev, ...profile }));
-            }
-          })
-          .catch(() => {});
+      try {
+        const profile = await ensureUserDoc(user);
+        setCurrentUser((prev) => ({ ...prev, ...profile }));
+      } catch (err) {
+        console.error('Failed to load/create user profile:', err);
       }
     });
     return unsubscribe;
