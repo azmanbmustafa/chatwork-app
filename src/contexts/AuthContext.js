@@ -46,6 +46,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
 
       try {
+        await user.getIdToken();
         const ref = doc(db, 'users', user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
