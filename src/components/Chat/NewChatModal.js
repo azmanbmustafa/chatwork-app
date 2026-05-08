@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   collection, query, where, getDocs,
-  addDoc, serverTimestamp, doc, getDoc,
+  addDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';

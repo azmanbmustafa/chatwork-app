@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
-import { FiX, FiSearch, FiUserPlus, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiUserPlus, FiTrash2 } from 'react-icons/fi';
 import './Chat.css';
 
 export default function NewGroupModal({ onClose }) {
