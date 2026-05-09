@@ -6,7 +6,7 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 
 const AuthContext = createContext();
@@ -45,23 +45,19 @@ export function AuthProvider({ children }) {
       setCurrentUser(user);
       setLoading(false);
 
+      const profile = {
+        uid: user.uid,
+        email: user.email.toLowerCase(),
+        displayName: user.displayName || user.email.split('@')[0],
+        photoURL: user.photoURL || null,
+      };
+      setCurrentUser((prev) => ({ ...prev, ...profile }));
+
       try {
-        await user.getIdToken();
-        const ref = doc(db, 'users', user.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          setCurrentUser((prev) => ({ ...prev, ...snap.data() }));
-        } else {
-          const profile = {
-            uid: user.uid,
-            email: user.email.toLowerCase(),
-            displayName: user.displayName || user.email.split('@')[0],
-            createdAt: new Date(),
-            photoURL: null,
-          };
-          await setDoc(ref, profile);
-          setCurrentUser((prev) => ({ ...prev, ...profile }));
-        }
+        await setDoc(doc(db, 'users', user.uid), {
+          ...profile,
+          createdAt: new Date(),
+        }, { merge: true });
       } catch (err) {
         console.error('Firestore profile error:', err);
         setDbError(err.message || err.code || 'Firestore write failed');
